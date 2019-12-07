@@ -21,7 +21,8 @@ declarations
   RAMP_UP:  array(NUMNODES) of real
   RAMP_DOWN:array(NUMNODES) of real
   B:        array(NUMNODES,NUMNODES) of real
-  CR:       array(NUMNODES) of real
+  CRUP:     array(NUMNODES) of real
+  CRDOWN:   array(NUMNODES) of real
 
   !Availability Matrix for SCOPF
   AM:       array(NUMNODES,NUMSCEN) of real
@@ -45,6 +46,7 @@ declarations
 end-declarations
 
 
+
 initialisations from 'mmsheet.xlsx:'+'data.xlsm'
   NUMNODES
   NUMLINES
@@ -61,6 +63,9 @@ initialisations from 'mmsheet.xlsx:'+'data.xlsm'
   BM         as     "skiph;noindex;BM"
   RAMP_UP    as     "skiph;noindex;RAMP_UP"
   RAMP_DOWN  as     "skiph;noindex;RAMP_DOWN"
+  CRUP       as     "skiph;noindex;CRUP"
+  CRDOWN     as     "skiph;noindex;CRDOWN"
+
 
 end-initialisations
 
@@ -126,13 +131,11 @@ function getTransferSol(k: real, s:real): real
 end-function
 
 
-
-CR ::[10,10,10]
 ! -------------------------------------------------------------------------------
 ! -------------------------------------------------------------------------------
 
 !Objetive function
-Objective :=sum(i in NUMNODES)(CV(i)*P(i,0) + CR(i)*(Rup(i)+Rdown(i)))
+Objective :=sum(i in NUMNODES)(CV(i)*P(i,0) + CRUP(i)*Rup(i) + CRDOWN(i)*Rdown(i))
 
 
 !Limits of Reserves UP and Down
@@ -201,9 +204,6 @@ end-do
 forall(i in NUMNODES) do
   writeln("Rdown(",i,") = ",getsol(Rdown(i)))
 end-do
-
-writeln("Escenario 6")
-writeln(getBM(1,2,6))
 
 
 ! -------------------------------------------------------------------------------
