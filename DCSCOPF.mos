@@ -1,0 +1,232 @@
+model DCSCOPF
+uses "mmxprs","mmsheet"
+
+parameters
+  M=100000
+end-parameters
+
+declarations
+  NUMNODES: set of real
+  NUMLINES: set of real
+  NUMSCEN: set of real
+
+  PMIN:     array(NUMNODES) of real
+  PMAX:     array(NUMNODES) of real
+  CV:       array(NUMNODES) of real
+  D:        array(NUMNODES) of real
+  NODEI:    array(NUMLINES) of real
+  NODEJ:    array(NUMLINES) of real
+  X:        array(NUMLINES) of real
+  FMAXIJ:   array(NUMLINES) of real
+  RAMP_UP:  array(NUMNODES) of real
+  RAMP_DOWN:array(NUMNODES) of real
+  B:        array(NUMNODES,NUMNODES) of real
+  CR:       array(NUMNODES) of real
+
+  !Availability Matrix for SCOPF
+  AM:       array(NUMNODES,NUMSCEN) of real
+  !Matrix of admittance
+  BM:       array(NUMLINES,NUMSCEN) of real
+
+  !Variables
+  P:        array(NUMNODES, NUMSCEN) of mpvar
+  Theta:    array(NUMNODES, NUMSCEN) of mpvar
+  Rup:      array(NUMNODES) of mpvar
+  Rdown:    array(NUMNODES) of mpvar
+  x:        array(NUMNODES) of mpvar
+
+  !Solutions
+  P_SOL:    array(NUMNODES, NUMSCEN) of real
+  L_SOL:    array(NUMLINES, NUMSCEN) of real
+
+  !Objective
+  Objective: linctr
+
+end-declarations
+
+
+initialisations from 'mmsheet.xlsx:'+'data.xlsm'
+  NUMNODES
+  NUMLINES
+  NUMSCEN
+  PMAX       as     "skiph;noindex;PMAX"
+  PMIN       as     "skiph;noindex;PMIN"
+  CV         as     "skiph;noindex;COST"
+  D          as     "skiph;noindex;D"
+  NODEI      as     "skiph;noindex;NODEI"
+  NODEJ      as     "skiph;noindex;NODEJ"
+  X          as     "skiph;noindex;X"
+  FMAXIJ     as     "skiph;noindex;FMAXIJ"
+  AM         as     "skiph;noindex;AM"
+  BM         as     "skiph;noindex;BM"
+  RAMP_UP    as     "skiph;noindex;RAMP_UP"
+  RAMP_DOWN  as     "skiph;noindex;RAMP_DOWN"
+
+end-initialisations
+
+
+procedure readBMatrix
+  forall(i in NUMLINES) do
+    ni := NODEI(i)
+    nj := NODEJ(i)
+    yij := 1/X(i)
+    B(ni,nj) := yij
+    B(nj,ni) := yij
+  end-do
+end-procedure
+
+
+procedure createBMatrix
+  forall(i in NUMNODES) do
+    B(i,i) := sum(j in NUMNODES)(B(i,j))
+  end-do
+  forall(i in NUMNODES) do
+    forall(j in NUMNODES) do
+      ! if(i<>j) then
+      !   B(i,j) := -B(i,j)
+      if(i=j) then
+        B(i,j) := -B(i,j)
+      end-if
+    end-do
+  end-do
+end-procedure
+
+!!Create B Matrix of the system
+readBMatrix
+createBMatrix
+
+
+!Takes node i and node j and returns
+! 1: if line between node i and node j is active
+! 0: if line between node i and node j is not active
+function getBM(i: real, j: real, s: real): real
+  index:=0.0
+  forall(k in NUMLINES)do
+    ni:= NODEI(k)
+    nj:= NODEJ(k)
+    if((ni=i and nj=j) or (ni=j and nj=i)) then
+          index:=k
+          break
+    end-if
+  end-do
+
+  if(index <>0.0) then
+      returned:=BM(index,s)
+  else
+    returned:=1.0
+  end-if
+end-function
+
+function getTransferSol(k: real, s:real): real
+  ni:= NODEI(k)
+  nj:= NODEJ(k)
+  theta_i:= getsol(Theta(ni,s))
+  theta_j:= getsol(Theta(nj,s))
+  returned:= B(ni,nj)*(theta_i - theta_j)*getBM(ni,nj,s)
+end-function
+
+
+
+CR ::[10,10,10]
+! -------------------------------------------------------------------------------
+! -------------------------------------------------------------------------------
+
+!Objetive function
+Objective :=sum(i in NUMNODES)(CV(i)*P(i,0) + CR(i)*(Rup(i)+Rdown(i)))
+
+
+!Limits of Reserves UP and Down
+forall(i in NUMNODES) do
+  x(i) is_binary
+  P(i,0) + Rup(i) <=  PMAX(i)*x(i)
+  P(i,0) - Rdown(i) >=  PMIN(i)*x(i)
+  Rup(i)  <=  RAMP_UP(i)
+  Rdown(i)  <=  RAMP_DOWN(i)
+end-do
+
+
+forall(s in NUMSCEN) do
+
+  !Balancing of power
+  forall(i in NUMNODES) do
+        sum(j in NUMNODES) (getBM(i,j,s)*B(i,j)*(Theta(i,s)-Theta(j,s))) = P(i,s) - D(i)
+  end-do
+
+
+  !Limits of reserves
+  forall(i in NUMNODES) do
+    P(i,s) <= AM(i,s)*(P(i,0) + Rup(i))
+    P(i,s) >= AM(i,s)*(P(i,0) - Rdown(i))
+  end-do
+
+
+  !Limits of power flow in lines
+  forall(l in NUMLINES) do
+      ni := NODEI(l)
+      nj := NODEJ(l)
+
+      B(ni,nj)*(Theta(ni,s)-Theta(nj,s)) <=  FMAXIJ(l)*BM(l,s) + M*(1-BM(l,s))
+      B(ni,nj)*(Theta(ni,s)-Theta(nj,s)) >= -FMAXIJ(l)*BM(l,s) - M*(1-BM(l,s))
+  end-do
+
+  !Define Theta angles as free variable
+  forall(i in NUMNODES) do
+    Theta(i,s) is_free
+  end-do
+
+end-do
+
+! -------------------------------------------------------------------------------
+! -------------------------------------------------------------------------------
+!!Print Results
+minimise(Objective)
+writeln("------Results: ------")
+
+writeln("Total Cost of Operation: ", getobjval)
+
+!Print Results
+forall(i in NUMNODES) do
+  writeln("P(",i,") = ",getsol(P(i,0)))
+end-do
+
+forall(i in NUMNODES) do
+  writeln("Theta(",i,") = ",getsol(Theta(i,0)))
+end-do
+
+
+forall(i in NUMNODES) do
+  writeln("Rup(",i,") = ",getsol(Rup(i)))
+end-do
+
+forall(i in NUMNODES) do
+  writeln("Rdown(",i,") = ",getsol(Rdown(i)))
+end-do
+
+writeln("Escenario 6")
+writeln(getBM(1,2,6))
+
+
+! -------------------------------------------------------------------------------
+! -------------------------------------------------------------------------------
+!!Save solutions
+forall(s in NUMSCEN)do
+  forall(i in NUMNODES) do
+    P_SOL(i,s) := getsol(P(i,s))
+  end-do
+
+  forall(i in NUMLINES) do
+    L_SOL(i,s) := getTransferSol(i,s)
+  end-do
+
+end-do
+
+OBJ_SOL:=getobjval
+
+initialisations to 'mmsheet.excel:'+'data.xlsm'
+	OBJ_SOL 	as "skiph;grow;noindex;COSTSOL"
+  P_SOL 		as "skiph;grow;noindex;PSOL"
+	L_SOL 		as "skiph;grow;noindex;LSOL"
+end-initialisations
+
+
+end-model
