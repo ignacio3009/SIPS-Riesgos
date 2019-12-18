@@ -1,0 +1,68 @@
+Set DefaultBaseFrequency=50
+
+clear
+set datapath = C:\Users\ignac\Desktop\SIPS
+
+
+!CIRCUITO
+New circuit.Test basekV=132 pu=1.0 angle=0 frequency=50 phases=3
+
+
+!TRAFO
+new transformer.Trafo1 phases=3  windings=2  buses=(sourcebus, A)  
+~ conns=(wye, wye)  kvs=(132, 33)  kvas=(30000, 30000) %loadloss=0 xhl=12.5
+~ mintap=0.85 maxtap=1.1
+
+!LINEAS
+new linecode.Tipo1 nphases=3 R1=2.13 X1=1.55 units=km
+
+new line.Linea1 bus1=A bus2=B length=1 phases=3 units=km linecode=Tipo1
+new line.Linea2 bus1=B bus2=C length=1 phases=3 units=km linecode=Tipo1
+new line.Linea3 bus1=C bus2=D length=1 phases=3 units=km linecode=Tipo1
+new line.Linea4 bus1=C bus2=E length=1 phases=3 units=km linecode=Tipo1
+
+!PERFILES CARGAS
+new loadshape.Perfil1 npts=1440 interval=0.0166 csvfile=Perfil_1.csv
+new loadshape.Perfil2 npts=1440 interval=0.0166 csvfile=Perfil_2.csv
+new loadshape.Perfil3 npts=1440 interval=0.0166 csvfile=Perfil_3.csv
+new loadshape.Perfil4 npts=1440 interval=0.0166 csvfile=Perfil_4.csv
+new loadshape.PerfilGD npts=1440 interval=0.0166 csvfile=Perfil_Solar_Base.csv
+
+
+!CARGAS
+new load.Load1 bus1=B phases=3 kV=33 kW=5000 kvar=1640 model=1 daily=Perfil1 status=variable
+new load.Load2 bus1=C phases=3 kV=33 kW=7000 kvar=1000 model=1 daily=Perfil2 status=variable
+new load.Load3 bus1=D phases=3 kV=33 kW=4000 kvar=-1000 model=1 daily=Perfil3 status=variable
+new load.Load4 bus1=E phases=3 kV=33 kW=7500 kvar=2000 model=1 daily=Perfil4 status=variable
+
+!SE AGREGA GD 
+new generator.GDB bus1=B phases=3 kV=33 kW=54000 kvar=0 model=1 daily=PerfilGD status=variable
+new generator.GDC bus1=C phases=3 kV=33 kW=54000 kvar=0 model=1 daily=PerfilGD status=variable
+new generator.GDD bus1=D phases=3 kV=33 kW=54000 kvar=0 model=1 daily=PerfilGD status=variable
+new generator.GDE bus1=E phases=3 kV=33 kW=54000 kvar=0 model=1 daily=PerfilGD status=variable
+
+
+!COMANDOS SOLVER
+Set controlmode = static
+Set mode = daily
+Set number = 1440
+Set stepsize = 1m
+
+!new monitor.MonitorT1 element=transformer.Trafo1 terminal=1 mode=1 ppolar=no
+
+new monitor.A element=transformer.Trafo1 terminal=2 mode=0 ppolar=no
+new monitor.B element=load.load1 terminal=1 mode=0 ppolar=no
+new monitor.C element=load.load2 terminal=1 mode=0 ppolar=no
+new monitor.D element=load.load3 terminal=1 mode=0 ppolar=no
+new monitor.E element=load.load4 terminal=1 mode=0 ppolar=no
+
+
+
+solve
+
+Export monitors A
+Export monitors B
+Export monitors C
+Export monitors D
+Export monitors E
+
