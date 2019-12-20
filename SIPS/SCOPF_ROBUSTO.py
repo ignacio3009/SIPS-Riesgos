@@ -2,6 +2,9 @@
 
 import numpy as np
 import xpress as xp
+from openpyxl import Workbook
+import os
+import xlwings as xw
 
 M = 10000
 NGen = 3
@@ -93,8 +96,47 @@ for s in numSce:
     model.addConstraint(f[2,s] >= theta[0,s] - theta[2,s] - M*(1-B[2,s]))
     
 
+
+# =============================================================================
+# SOLVE AND SAVE SOLUTIONS    
+# =============================================================================
 model.setObjective(totalcost)
 model.solve()
 
 value = model.getObjVal()
-print(model.getSolution())
+print("---Total Cost----")
+print(value)
+
+psol =      model.getSolution(p)
+fsol =      model.getSolution(f)
+xsol =      model.getSolution(x)
+thetasol =  model.getSolution(theta)
+rupsol =    model.getSolution(rup)
+rdownsol =  model.getSolution(rdown)
+
+
+startcol='C'
+filename = 'data.xlsx'
+curFol = os.path.realpath('')
+path_filename = curFol + '\\' + filename
+batcol = chr(ord(startcol)+1)
+rupcol = chr(ord(startcol)+2)
+rdowncol = chr(ord(startcol)+3)
+wb = xw.Book(path_filename)
+sht = wb.sheets['ROBUSTO']
+sht.range(startcol+str(3)).value = psol
+sht.range(startcol+str(6)).value = fsol
+
+sht.range(rupcol+str(10)).value = rupsol[0]
+sht.range(rupcol+str(11)).value = rupsol[1]
+sht.range(rupcol+str(12)).value = rupsol[2]
+
+sht.range(rdowncol+str(10)).value = rdownsol[0]
+sht.range(rdowncol+str(11)).value = rdownsol[1]
+sht.range(rdowncol+str(12)).value = rdownsol[2]
+
+sht.range(rdowncol+str(10)).value = rdownsol[0]
+sht.range(rdowncol+str(11)).value = rdownsol[1]
+sht.range(rdowncol+str(12)).value = rdownsol[2]
+
+wb.save()
