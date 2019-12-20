@@ -1,165 +1,53 @@
-# import pandapower as pp
-# import matplotlib.pyplot as plt
-# from pandapower.plotting.simple_plot import *
-
-
-# Pgen = [100,50,60]
-# Qgen = [10,10,10]
-
-# Pcon = [50,50,50]
-# Qcon = [10,10,10]
-
-# PMAX = [300,300,300]
-# QMAX = [300,300,300]
-# PMIN = [0,0,0]
-# QMIN = [0,0,0]
-
-# #create empty net
-# net = pp.create_empty_network()
-
-# #create buses
-# busA = pp.create_bus(net, vn_kv=220, name="Bus A",geodata=(1,2))
-# busB = pp.create_bus(net, vn_kv=220, name="Bus B",geodata=(0,4))
-# busC = pp.create_bus(net, vn_kv=220, name="Bus C",geodata=(2,4))
-
-
-# busGA = pp.create_bus(net, vn_kv=13.8, name="Bus GA",geodata=(1,1))
-# busGB = pp.create_bus(net, vn_kv=13.8, name="Bus GB",geodata=(0,5))
-# busGC = pp.create_bus(net, vn_kv=13.8, name="Bus GC",geodata=(2,5))
-
-# #create bus elements
-# # pp.create_ext_grid(net, bus=bus1, vm_pu=1.02, name="Grid Connection")
-# #pp.create_load(net, bus=bus3, p_mw=0.100, q_mvar=0.05, name="Load")
-
-
-
-# #create standard type
-# # trafo_data = {"sn_mva": 220, "vn_hv_kv": 220, "vn_lv_kv": 13.8, "vk_percent": 12.2,"vkr_percent": 0.25, "pfe_kw": 65,"i0_percent": 0.06,"shift_degree": 0}
-# # pp.create_std_type(net, trafo_data, "160 MVA 380/110 kV", element="trafo")
-# #To create data go to
-# #C:\users\ignac\Anaconda3\lib\site-packages\pandapower\std_types.py
-
-# #create branch elements
-# trafoA = pp.create_transformer(net, hv_bus=busA, lv_bus=busGA, std_type="250 MVA 220/13.8 kV", name="TrafoA")
-# trafoB = pp.create_transformer(net, hv_bus=busB, lv_bus=busGB, std_type="250 MVA 220/13.8 kV", name="TrafoB")
-# trafoC = pp.create_transformer(net, hv_bus=busC, lv_bus=busGC, std_type="250 MVA 220/13.8 kV", name="TrafoC")
-
-# line1 = pp.create_line(net, from_bus=busA, to_bus=busB, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line1")
-# line2 = pp.create_line(net, from_bus=busB, to_bus=busC, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line2")
-# line3 = pp.create_line(net, from_bus=busA, to_bus=busC, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line3")
-
-
-# pp.create_load(net, bus=busA, p_mw = Pcon[0], q_mvar=Qcon[0], name= "LoadA")
-# pp.create_load(net, bus=busB, p_mw = Pcon[1], q_mvar=Qcon[1], name= "LoadB")
-# pp.create_load(net, bus=busC, p_mw = Pcon[2], q_mvar=Qcon[2], name= "LoadC")
-
-
-# pp.create_gen(net,bus=busGA, p_mw = Pgen[0], sn_mva = 100, name="Gen1", in_service=True, 
-#                 max_p_mw = PMAX[0], min_p_mw=PMIN[0], max_q_mvar=QMAX[0], min_q_mvar=QMIN[0], controllable=True, 
-#                 slack=True)
-
-# pp.create_gen(net,bus=busGB, p_mw = Pgen[1], sn_mva = 100, name="Gen2", in_service=True, 
-#                 max_p_mw = PMAX[1], min_p_mw=PMIN[1], max_q_mvar=QMAX[1], min_q_mvar=QMIN[1], controllable=True)
-
-# pp.create_gen(net,bus=busGC, p_mw = Pgen[2], sn_mva = 100, name="Gen3", in_service=True, 
-#                 max_p_mw = PMAX[2], min_p_mw=PMIN[2], max_q_mvar=QMAX[2], min_q_mvar=QMIN[2], controllable=True)
-
-
-
-# #Run power flow
-# pp.runpp(net)
-# print(net.res_bus)
-# simple_plot(net)
-
-# simple_plot(net,library='networkx')
-
-
-
-
-# =============================================================================
-# 
-# =============================================================================
-# import pandapower as pp
-# #create empty net
-# net = pp.create_empty_network() 
-
-# #create buses
-# b1 = pp.create_bus(net, vn_kv=20., name="Bus 1")
-# b2 = pp.create_bus(net, vn_kv=0.4, name="Bus 2")
-# b3 = pp.create_bus(net, vn_kv=0.4, name="Bus 3")
-
-# #create bus elements
-# pp.create_ext_grid(net, bus=b1, vm_pu=1.02, name="Grid Connection")
-# pp.create_load(net, bus=b3, p_mw=0.1, q_mvar=0.05, name="Load")
-
-# #create branch elements
-# tid = pp.create_transformer(net, hv_bus=b1, lv_bus=b2, std_type="0.4 MVA 20/0.4 kV", name="Trafo")
-# pp.create_line(net, from_bus=b2, to_bus=b3, length_km=0.1, name="Line",std_type="NAYY 4x50 SE")  
-
-# pp.runpp(net)
-# print(net.res_bus)
-
-# =============================================================================
-# =============================================================================
-# # OTRA VERSION
-# =============================================================================
-# =============================================================================
-
-from openpyxl import Workbook
-import os
 import xlwings as xw
 import pandapower as pp
 import pandapower.plotting.simple_plot
 
-def evaluacionTecEco(Pgen,Qgen,Pcon,Qcon,PMAX,QMAX,PMIN,QMIN, filename, scenario, print_results=False):
+def evaluacionTec(Pgen,Qgen,Pcon,Qcon,PMAX,QMAX,PMIN,QMIN, filename, s, print_results=False):
     # from pandapower.plotting.simple_plot import *
     #create empty net
+    
     net = pp.create_empty_network()
     
     #create buses    
-    busGA = pp.create_bus(net, vn_kv=13.8, name="Bus GA",geodata=(1,1))
-    busGB = pp.create_bus(net, vn_kv=13.8, name="Bus GB",geodata=(0,5))
-    busGC = pp.create_bus(net, vn_kv=13.8, name="Bus GC",geodata=(2,5))
+    pp.create_bus(net, index = 3, vn_kv=13.8, name="Bus GA",geodata=(1,1))
+    pp.create_bus(net, index = 4, vn_kv=13.8, name="Bus GB",geodata=(0,5))
+    pp.create_bus(net, index = 5, vn_kv=13.8, name="Bus GC",geodata=(2,5))
     
-    busA = pp.create_bus(net, vn_kv=220, name="Bus A",geodata=(1,2))
-    busB = pp.create_bus(net, vn_kv=220, name="Bus B",geodata=(0,4))
-    busC = pp.create_bus(net, vn_kv=220, name="Bus C",geodata=(2,4))
-    #create bus elements
-    # pp.create_ext_grid(net, bus=bus1, vm_pu=1.02, name="Grid Connection")
-    #pp.create_load(net, bus=bus3, p_mw=0.100, q_mvar=0.05, name="Load")
-    
-    
-    
-    #create standard type
-    # trafo_data = {"sn_mva": 220, "vn_hv_kv": 220, "vn_lv_kv": 13.8, "vk_percent": 12.2,"vkr_percent": 0.25, "pfe_kw": 65,"i0_percent": 0.06,"shift_degree": 0}
-    # pp.create_std_type(net, trafo_data, "160 MVA 380/110 kV", element="trafo")
-    #To create data go to
-    #C:\users\ignac\Anaconda3\lib\site-packages\pandapower\std_types.py
-    
-    #create branch elements
-    pp.create_transformer(net, hv_bus=busA, lv_bus=busGA, std_type="250 MVA 220/13.8 kV", name="TrafoA")
-    pp.create_transformer(net, hv_bus=busB, lv_bus=busGB, std_type="250 MVA 220/13.8 kV", name="TrafoB")
-    pp.create_transformer(net, hv_bus=busC, lv_bus=busGC, std_type="250 MVA 220/13.8 kV", name="TrafoC")
-    
-    pp.create_line(net, from_bus=busA, to_bus=busB, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line1")
-    pp.create_line(net, from_bus=busB, to_bus=busC, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line2")
-    pp.create_line(net, from_bus=busA, to_bus=busC, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line3")
-    
-    
-    pp.create_load(net, bus=busA, p_mw = Pcon[0], q_mvar=Qcon[0], name= "LoadA")
-    pp.create_load(net, bus=busB, p_mw = Pcon[1], q_mvar=Qcon[1], name= "LoadB")
-    pp.create_load(net, bus=busC, p_mw = Pcon[2], q_mvar=Qcon[2], name= "LoadC")
-    
-    
-    pp.create_gen(net,bus=busGA, p_mw = Pgen[0], sn_mva = 100, name="Gen1", in_service=True, 
+    pp.create_bus(net, index = 0, vn_kv=220, name="Bus A",geodata=(1,2))
+    pp.create_bus(net, index = 1, vn_kv=220, name="Bus B",geodata=(0,4))
+    pp.create_bus(net, index = 2, vn_kv=220, name="Bus C",geodata=(2,4))
+
+    #Create Generators
+    pp.create_gen(net,bus=0, p_mw = Pgen[0], sn_mva = 100, name="Gen1", in_service=(s!=1), 
                     max_p_mw = PMAX[0], min_p_mw=PMIN[0], max_q_mvar=QMAX[0], min_q_mvar=QMIN[0], controllable=True, 
                     slack=True)
     
-    pp.create_gen(net,bus=busGB, p_mw = Pgen[1], sn_mva = 100, name="Gen2", in_service=True, 
-                    max_p_mw = PMAX[1], min_p_mw=PMIN[1], max_q_mvar=QMAX[1], min_q_mvar=QMIN[1], controllable=True)
+    if(s==1):
+        pp.create_gen(net,bus=1, p_mw = Pgen[1], sn_mva = 100, name="Gen2", in_service=True, 
+                    max_p_mw = PMAX[1], min_p_mw=PMIN[1], max_q_mvar=QMAX[1], min_q_mvar=QMIN[1], controllable=True,
+                    slack=True)
+    else:
+        pp.create_gen(net,bus=1, p_mw = Pgen[1], sn_mva = 100, name="Gen2", in_service=True, 
+                    max_p_mw = PMAX[1], min_p_mw=PMIN[1], max_q_mvar=QMAX[1], min_q_mvar=QMIN[1], controllable=True, 
+                    slack=False)
     
-    pp.create_gen(net,bus=busGC, p_mw = Pgen[2], sn_mva = 100, name="Gen3", in_service=True, 
+    
+    pp.create_gen(net,bus=2, p_mw = Pgen[2], sn_mva = 100, name="Gen3", in_service=(s!=3), 
                     max_p_mw = PMAX[2], min_p_mw=PMIN[2], max_q_mvar=QMAX[2], min_q_mvar=QMIN[2], controllable=True)
+    
+    #create branch elements
+    pp.create_transformer(net, hv_bus=0, lv_bus=3, std_type="250 MVA 220/13.8 kV", name="TrafoA")
+    pp.create_transformer(net, hv_bus=1, lv_bus=4, std_type="250 MVA 220/13.8 kV", name="TrafoB")
+    pp.create_transformer(net, hv_bus=2, lv_bus=5, std_type="250 MVA 220/13.8 kV", name="TrafoC")
+    
+    pp.create_line(net, from_bus=0, to_bus=1, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line1",in_service=(s!=4))
+    pp.create_line(net, from_bus=1, to_bus=2, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line2",in_service=(s!=5))
+    pp.create_line(net, from_bus=0, to_bus=2, length_km=100, std_type="490-AL1/64-ST1A 220.0", name="Line3",in_service=(s!=6))
+    
+    #Create Loads
+    pp.create_load(net, bus=0, p_mw = Pcon[0], q_mvar=Qcon[0], name= "LoadA")
+    pp.create_load(net, bus=1, p_mw = Pcon[1], q_mvar=Qcon[1], name= "LoadB")
+    pp.create_load(net, bus=2, p_mw = Pcon[2], q_mvar=Qcon[2], name= "LoadC")
     
     pp.runpp(net)
     if(print_results):
@@ -175,10 +63,10 @@ def evaluacionTecEco(Pgen,Qgen,Pcon,Qcon,PMAX,QMAX,PMIN,QMIN, filename, scenario
     row = [3,13,23,33,43,53,63]
     wb = xw.Book(filename)
     sht = wb.sheets['Tecnicos']
-    sht.range('B'+str(row[scenario])).value = net.res_bus
-    sht.range('I'+str(row[scenario])).value = net.res_line
-    sht.range('Z'+str(row[scenario])).value = net.res_trafo
-    sht.range('AP'+str(row[scenario])).value = net.res_gen
+    sht.range('B'+str(row[s])).value = net.res_bus
+    sht.range('I'+str(row[s])).value = net.res_line
+    sht.range('Z'+str(row[s])).value = net.res_trafo
+    sht.range('AP'+str(row[s])).value = net.res_gen
     return 
 
 def clearContents(filename):
@@ -193,3 +81,42 @@ def clearContents(filename):
         sht.range('AP'+str(i)+':AT'+str(j)).clear_contents()
         
         
+        
+        
+# =============================================================================
+# EXAMPLE
+# =============================================================================
+# import numpy as np
+def solveAll():
+    filename = 'RES_CORRECTIVO.xlsx'
+    clearContents(filename)
+    for s in range(0,7):
+        print('Simulating Scenario '+str(s)+'. Please wait...')
+        letter = ['B','C','D','E','F','G','H']
+        PMIN =  [0,30,10]
+        PMAX =  [100,150,150]
+        # FMAX =  [50,100,100]
+        # CV   =  [5,30,120]
+        # CR   =  [10,10,10]
+        D    =  [30,60,120]
+        # RAMPMAX = [50,50,50]
+        # PROBSCEN = [0,0.01,0.01,0.01,0.01,0.01, 0.01]
+        # CRUP = [100,20,10]
+        # CRDOWN = [80,50,10]
+        
+    
+        Qgen = [0,0,0]
+        Qcon=  [0,0,0]
+        QMAX = [100,100,100]
+        QMIN = [0,0,0]
+        
+        wb = xw.Book(filename)
+        sht = wb.sheets['Economicos']
+        psol = sht.range(letter[s]+'2:'+letter[s]+'4').value
+        wb = xw.Book(filename)
+        evaluacionTec(psol,Qgen,D,Qcon,PMAX,QMAX,PMIN,QMIN,filename,s,print_results=False)
+        wb.save()
+    
+    print('End Simulations!')
+    
+solveAll()

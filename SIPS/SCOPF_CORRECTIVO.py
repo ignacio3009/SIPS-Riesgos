@@ -2,17 +2,8 @@
 
 import numpy as np
 import xpress as xp
-import saveresults as sv
-from openpyxl import Workbook
-import os
 import xlwings as xw
-from openpyxl import Workbook
-import os
-import xlwings as xw
-import pandapower as pp
-import pandapower.plotting.simple_plot
-from SCOPF_EVALUACION_TECNICA import*
-
+# import pandapower.plotting.simple_plot
 
 M = 10000
 NGen = 3
@@ -29,16 +20,16 @@ numEle = range(NEle)
 numSce = range(NSce)
 
 
-PMIN =  np.array([0,30,10])
-PMAX =  np.array([100,150,150])
-FMAX =  np.array([50,100,100])
-CV   =  np.array([5,30,120])
-CR   =  np.array([10,10,10])
-D =     np.array([30,60,120])
-RAMPMAX = np.array([50,50,50])
-PROBSCEN = np.array([0,0.01,0.01,0.01,0.01,0.01, 0.01])
-CRUP = np.array([100,20,10])
-CRDOWN = np.array([80,50,10])
+PMIN =  [0,30,10]
+PMAX =  [100,150,150]
+FMAX =  [50,100,100]
+CV   =  [5,30,120]
+CR   =  [10,10,10]
+D    =  [30,60,120]
+RAMPMAX = [50,50,50]
+PROBSCEN = [0,0.01,0.01,0.01,0.01,0.01, 0.01]
+CRUP = [100,20,10]
+CRDOWN = [80,50,10]
 
 A = np.ones((NGen,NSce))
 B = np.ones((NLin,NSce))
@@ -148,15 +139,3 @@ for i in range(1,4):
     # sht.range('M'+str(i+1)).value = rdownsol[i-1]
 wb.save()
 
-
-# =============================================================================
-# Tecnical Simulations
-# =============================================================================
-Qgen = np.array([0,0,0])
-Qcon= np.array([0,0,0])
-QMAX = np.array([100,100,100])
-QMIN = np.array([0,0,0])
-clearContents(filename)
-for s in numSce:
-    evaluacionTecEco(psol[:,0],Qgen,D,Qcon,PMAX,QMAX,PMIN,QMIN,filename,s,print_results=False)
-wb.save()                    
