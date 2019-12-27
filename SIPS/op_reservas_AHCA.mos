@@ -1,0 +1,278 @@
+model reservas_AHCA
+uses "mmxprs","mmsheet","mmetc","mmjobs","mmsystem"
+
+
+parameters
+	M = 10000
+end-parameters
+
+
+declarations
+	numGen = 3
+	gen = 1..numGen
+	numLin = 3
+	lineas = 1..numLin
+	numBarras = 3
+	barras = 1..numBarras
+	numFallas = 4
+	escenarios = 0..numFallas !Escenario 0 corresponde a pre-falla. Escenario 1-6 a los escenarios post-contingencia.
+	escenarios_falla = 1..numFallas
+	horas = 1..24
+	!Parametros
+	P_MIN:		array(gen) of real
+	P_MAX:		array(gen) of real
+	F_MAX:		array(lineas) of real
+	CV: 		array(gen) of real
+	CRUP: 		array(gen) of real
+	CRDOWN: 	array(gen) of real
+	RUP_MAX:	array(gen) of real
+	RDOWN_MAX:	array(gen) of real
+	D:			array(barras, horas) of real
+	Dmax:		array(barras) of real
+	DEMRES:		array(horas) of real
+	DEMIND:		array(horas) of real
+	DEMCOM:		array(horas) of real
+	A:			array(gen,escenarios) of real
+	B:			array(lineas,escenarios) of real
+
+	PROB:		array(escenarios_falla) of real
+
+	COST1:		real
+	COST2:		real
+
+	!Variables
+	p:			array(gen,escenarios,horas) of mpvar		!potencias
+	f:			array(lineas,escenarios,horas) of mpvar
+	theta:		array(barras,escenarios,horas) of mpvar
+	rup:		array(gen,escenarios,horas) of mpvar		!reservas arriba
+	rdown:		array(gen,escenarios,horas) of mpvar		!reservas abajo
+	x:			array(gen,horas) of mpvar		!unit commitment
+	xrdown:		array(gen,escenarios,horas) of mpvar
+	xrup:		array(gen,escenarios,horas) of mpvar
+
+
+	!Funcion objetivo
+	Objective:	linctr
+end-declarations
+
+
+
+initialisations from 'mmsheet.excel:'+'data_3_bus.xlsx'
+	A			as "noindex;A"
+    B			as "noindex;B"
+    P_MIN		as "skiph;noindex;GPMIN"
+    P_MAX		as "skiph;noindex;GPMAX"
+    F_MAX		as "skiph;noindex;LFMAX"
+    CV			as "skiph;noindex;GCV"
+    CRUP		as "skiph;noindex;GCRUP"
+    CRDOWN		as "skiph;noindex;GCRDOWN"
+    Dmax		as "skiph;noindex;DPDEM"
+    RUP_MAX 	as "skiph;noindex;GRUPMAX"
+    RDOWN_MAX	as "skiph;noindex;GRDOWNMAX"
+    PROB		as "skiph;noindex;PROB"
+end-initialisations
+
+initialisations from  'mmsheet.excel:'+'load_curve.xlsx'
+	DEMRES		as "noindex;RESIDENCIAL"
+	DEMIND		as "noindex;INDUSTRIAL"
+	DEMCOM		as "noindex;COMERCIAL"
+end-initialisations
+
+
+forall(t in horas) do
+	forall(b in barras) do
+		case b of
+			1: D(b,t) :=DEMIND(t)*Dmax(b)
+			2: D(b,t) :=DEMRES(t)*Dmax(b)
+			3: D(b,t) :=DEMCOM(t)*Dmax(b)
+		end-case
+	end-do
+end-do
+
+
+! !Minimizar costo de operación y reservas y escenarios de operación
+Objective :=  sum(t in horas)(sum(g in gen)(CV(g)*p(g,0,t)) + sum(s in escenarios_falla)(PROB(s)*(sum(g in gen)(CV(g)*p(g,s,t) + CRUP(g)*rup(g,s,t) + CRDOWN(g)*rdown(g,s,t)))))
+
+
+!Limites de Generadores
+forall(t in horas) do
+	forall(s in escenarios) do
+		forall(g in gen)do
+			x(g,t) is_binary
+			xrdown(g,s,t) is_binary
+			xrup(g,s,t) is_binary
+			!Maximos y minimos tecnicos
+			p(g,0,t) + rup(g,s,t) <= P_MAX(g)*x(g,t)
+			p(g,0,t) - rdown(g,s,t) >= P_MIN(g)*x(g,t)
+			! Rampa máxima de reserva está condicionada a la tecnología de generación
+			rup(g,s,t) <= RUP_MAX(g)*xrup(g,s,t)
+			rdown(g,s,t) <= RDOWN_MAX(g)*xrdown(g,s,t)
+			xrdown(g,s,t) + xrup(g,s,t) <= 1
+		end-do
+	end-do
+end-do
+
+forall(t in horas) do
+	forall(g in gen)do
+		xrdown(g,0,t) = 0
+		xrup(g,0,t) = 0
+	end-do
+end-do
+
+!Balances nodales para escenario pre y post-falla
+forall(t in horas) do
+	forall(s in escenarios)do
+		p(1,s,t) = D(1,t) + f(1,s,t) + f(3,s,t)
+		p(2,s,t) + f(1,s,t) = D(2,t) + f(2,s,t)
+		p(3,s,t) + f(3,s,t) + f(2,s,t) = D(3,t)
+	end-do
+end-do
+
+!Operacion en cada escenario
+forall(t in horas) do
+	forall(s in escenarios)do
+		forall(g in gen)do
+			p(g,s,t) <= A(g,s)*(p(g,0,t)+rup(g,s,t)) !A(g,s) es la matriz de disponibilidad de los generadores para los s escenarios.
+			p(g,s,t) >= A(g,s)*(p(g,0,t)-rdown(g,s,t)) !La generación post-falla está condicionada a la generación pre-falla y a las reservas disponibles.
+		end-do
+
+		! Maximo flujo por líneas (Limitación Térmica)
+		forall(l in lineas)do
+			f(l,s,t) is_free
+			f(l,s,t) <= F_MAX(l)*B(l,s) !B(l,s) es la matriz de disponibilidad de las líneas para los s escenarios.
+			f(l,s,t) >= -F_MAX(l)*B(l,s)!Fuerza a que el flujo sea cero en el escenario en que la línea está en situación de falla.
+		end-do
+
+		f(1,s,t) <= theta(1,s,t)-theta(2,s,t) + M*(1-B(1,s)) !Formulación Big-M.
+		f(1,s,t) >= theta(1,s,t)-theta(2,s,t) - M*(1-B(1,s)) !En el caso en que la línea esté indisponible, "elimina" el acople angular entre las barras
+		f(2,s,t) <= theta(2,s,t)-theta(3,s,t) + M*(1-B(2,s)) !Dado que la igualdad F_jk = thetha_j - thetha_k (que ocurre cuando la línea está sana)
+		f(2,s,t) >= theta(2,s,t)-theta(3,s,t) - M*(1-B(2,s)) !se transforma en -M <= F <= M.
+		f(3,s,t) <= theta(1,s,t)-theta(3,s,t) + M*(1-B(3,s))
+		f(3,s,t) >= theta(1,s,t)-theta(3,s,t) - M*(1-B(3,s))
+
+		forall(b in barras)do
+			theta(b,s,t) is_free
+		end-do
+	end-do
+end-do
+
+
+
+minimise(Objective)
+
+writeln("Results Optimization:")
+writeln("Costo del sistema con todos escenarios: ", getobjval)
+COST1 :=getobjval
+
+! forall(s in escenarios) do
+
+! 	forall(g in gen) do
+! 		p_sol(g,s):=getsol(p(g,s))
+! 		rup_sol(g,s):=getsol(rup(g,s))
+! 		rdown_sol(g,s):=getsol(rdown(g,s))
+! 	end-do
+
+! 	forall(l in lineas) do
+! 		f_sol(l,s):=getsol(f(l,s))
+! 	end-do
+! end-do
+
+
+! OBJ_SOL:=getobjval
+
+! initialisations to 'mmsheet.excel:'+'res_reservas.xlsx'
+! 	OBJ_SOL 	as "noindex;CCOST"
+!     p_sol 		as "noindex;PPSOL"
+! 	f_sol 		as "noindex;LLSOL"
+! 	rup_sol		as "noindex;RRUPSOL"
+! 	rdown_sol	as "noindex;RRDOWNSOL"
+! end-initialisations
+
+
+initialisations from 'mmsheet.excel:'+'data_3_bus.xlsx'
+	A			as "noindex;A"
+    B			as "noindex;B"
+end initialisations
+
+! !Minimizar costo de operación y reservas y escenarios de operación
+Objective :=  sum(t in horas)(sum(g in gen)(CV(g)*p(g,0,t)) + sum(s in escenarios_falla)(PROB(s)*(sum(g in gen)(CV(g)*p(g,s,t) + CRUP(g)*rup(g,s,t) + CRDOWN(g)*rdown(g,s,t)))))
+
+
+!Limites de Generadores
+forall(t in horas) do
+	forall(s in escenarios) do
+		forall(g in gen)do
+			x(g,t) is_binary
+			xrdown(g,s,t) is_binary
+			xrup(g,s,t) is_binary
+			!Maximos y minimos tecnicos
+			p(g,0,t) + rup(g,s,t) <= P_MAX(g)*x(g,t)
+			p(g,0,t) - rdown(g,s,t) >= P_MIN(g)*x(g,t)
+			! Rampa máxima de reserva está condicionada a la tecnología de generación
+			rup(g,s,t) <= RUP_MAX(g)*xrup(g,s,t)
+			rdown(g,s,t) <= RDOWN_MAX(g)*xrdown(g,s,t)
+			xrdown(g,s,t) + xrup(g,s,t) <= 1
+		end-do
+	end-do
+end-do
+
+forall(t in horas) do
+	forall(g in gen)do
+		xrdown(g,0,t) = 0
+		xrup(g,0,t) = 0
+	end-do
+end-do
+
+!Balances nodales para escenario pre y post-falla
+forall(t in horas) do
+	forall(s in escenarios)do
+		p(1,s,t) = D(1,t) + f(1,s,t) + f(3,s,t)
+		p(2,s,t) + f(1,s,t) = D(2,t) + f(2,s,t)
+		p(3,s,t) + f(3,s,t) + f(2,s,t) = D(3,t)
+	end-do
+end-do
+
+!Operacion en cada escenario
+forall(t in horas) do
+	forall(s in escenarios)do
+		forall(g in gen)do
+			p(g,s,t) <= A(g,s)*(p(g,0,t)+rup(g,s,t)) !A(g,s) es la matriz de disponibilidad de los generadores para los s escenarios.
+			p(g,s,t) >= A(g,s)*(p(g,0,t)-rdown(g,s,t)) !La generación post-falla está condicionada a la generación pre-falla y a las reservas disponibles.
+		end-do
+
+		! Maximo flujo por líneas (Limitación Térmica)
+		forall(l in lineas)do
+			f(l,s,t) is_free
+			f(l,s,t) <= F_MAX(l)*B(l,s) !B(l,s) es la matriz de disponibilidad de las líneas para los s escenarios.
+			f(l,s,t) >= -F_MAX(l)*B(l,s)!Fuerza a que el flujo sea cero en el escenario en que la línea está en situación de falla.
+		end-do
+
+		f(1,s,t) <= theta(1,s,t)-theta(2,s,t) + M*(1-B(1,s)) !Formulación Big-M.
+		f(1,s,t) >= theta(1,s,t)-theta(2,s,t) - M*(1-B(1,s)) !En el caso en que la línea esté indisponible, "elimina" el acople angular entre las barras
+		f(2,s,t) <= theta(2,s,t)-theta(3,s,t) + M*(1-B(2,s)) !Dado que la igualdad F_jk = thetha_j - thetha_k (que ocurre cuando la línea está sana)
+		f(2,s,t) >= theta(2,s,t)-theta(3,s,t) - M*(1-B(2,s)) !se transforma en -M <= F <= M.
+		f(3,s,t) <= theta(1,s,t)-theta(3,s,t) + M*(1-B(3,s))
+		f(3,s,t) >= theta(1,s,t)-theta(3,s,t) - M*(1-B(3,s))
+
+		forall(b in barras)do
+			theta(b,s,t) is_free
+		end-do
+	end-do
+end-do
+
+
+
+minimise(Objective)
+
+writeln("Results Optimization:")
+writeln("Costo del sistema con escenarios reducidos: ", getobjval)
+COST2:= getobjval
+
+writeln("Ahorro de Costos Diarios:")
+writeln(COST1-COST2)
+
+writeln("Ahorro de Costos Anual AHCA:")
+writeln(8760*(COST1-COST2))
+
+
+end-model

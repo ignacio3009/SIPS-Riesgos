@@ -1,0 +1,128 @@
+model Con_seguridad
+uses "mmxprs","mmsheet","mmetc","mmjobs","mmsystem"
+
+
+parameters
+	M = 10000
+end-parameters
+
+
+declarations
+	numGen = 3
+	gen = 1..numGen
+	numLin = 3
+	lineas = 1..numLin
+	numBarras = 3
+	barras = 1..numBarras
+	numFallas = numGen+numLin
+	escenarios = 0..numFallas !Escenario 0 corresponde a pre-falla. Escenario 1-6 a los escenarios post-contingencia.
+
+	!Parametros
+	P_MIN:		array(gen) of real
+	P_MAX:		array(gen) of real
+	F_MAX:		array(lineas) of real
+	CV: 		array(gen) of real
+	CR: 		array(gen) of real
+	RAMP_MAX:	array(gen) of real
+	D:			array(barras) of real
+	A:			array(gen,escenarios) of real
+	B:			array(lineas,escenarios) of real
+
+	!Variables
+	p:			array(gen,escenarios) of mpvar		!potencias
+	f:			array(lineas,escenarios) of mpvar
+	theta:		array(barras,escenarios) of mpvar
+	rup:		array(gen) of mpvar		!reservas arriba
+	rdown:		array(gen) of mpvar		!reservas abajo
+	x:			array(gen) of mpvar			!unit commitment
+	Objective:	linctr
+end-declarations
+
+
+P_MIN ::[0,10,10]
+P_MAX ::[100,150,150]
+F_MAX ::[50,100,100]
+CV ::[30,60,120]
+CR ::[10,10,10]
+RAMP_MAX ::[100,100,100]
+D ::[30,60,120]
+
+initialisations from 'mmsheet.excel:'+'Datos.xlsx'
+	A 			as	 "skiph;noindex;A"
+	B			as   "skiph;noindex;B"
+end-initialisations
+
+!Minimizar costo de operación y reservas
+Objective := sum(g in gen)(CV(g)*p(g,0) + CR(g)*(rup(g)+rdown(g)))
+
+
+forall(g in gen)do
+	x(g) is_binary
+	!Maximos y minimos tecnicos
+	p(g,0) + rup(g) <= P_MAX(g)*x(g)
+	p(g,0) - rdown(g) >= P_MIN(g)*x(g)
+	! Rampa máxima de reserva está condicionada a la tecnología de generación
+	rup(g) <= RAMP_MAX(g)
+	rdown(g) <= RAMP_MAX(g)
+end-do
+
+
+forall(s in escenarios)do
+	!Balances nodales para escenario pre y post-falla
+	p(1,s) = D(1) + f(1,s) + f(3,s)
+	p(2,s) + f(1,s) = D(2) + f(2,s)
+	p(3,s) + f(3,s) + f(2,s) = D(3)
+end-do
+
+forall(s in escenarios)do
+	forall(g in gen)do
+		p(g,s) <= A(g,s)*(p(g,0)+rup(g)) !A(g,s) es la matriz de disponibilidad de los generadores para los s escenarios.
+		p(g,s) >= A(g,s)*(p(g,0)-rdown(g)) !La generación post-falla está condicionada a la generación pre-falla y a las reservas disponibles.
+	end-do
+
+	! Maximo flujo por líneas (Limitación Térmica)
+	forall(l in lineas)do
+		f(l,s) is_free
+		f(l,s) <= F_MAX(l)*B(l,s) !B(l,s) es la matriz de disponibilidad de las líneas para los s escenarios.
+		f(l,s) >= -F_MAX(l)*B(l,s)!Fuerza a que el flujo sea cero en el escenario en que la línea está en situación de falla.
+	end-do
+
+	f(1,s) <= theta(1,s)-theta(2,s) + M*(1-B(1,s)) !Formulación Big-M.
+	f(1,s) >= theta(1,s)-theta(2,s) - M*(1-B(1,s)) !En el caso en que la línea esté indisponible, "elimina" el acople angular entre las barras
+	f(2,s) <= theta(2,s)-theta(3,s) + M*(1-B(2,s)) !Dado que la igualdad F_jk = thetha_j - thetha_k (que ocurre cuando la línea está sana)
+	f(2,s) >= theta(2,s)-theta(3,s) - M*(1-B(2,s)) !se transforma en -M <= F <= M.
+	f(3,s) <= theta(1,s)-theta(3,s) + M*(1-B(3,s))
+	f(3,s) >= theta(1,s)-theta(3,s) - M*(1-B(3,s))
+
+	forall(b in barras)do
+		theta(b,s) is_free
+	end-do
+end-do
+
+minimise(Objective)
+
+writeln("Results:")
+
+writeln("Costo del sistema: ", getobjval)
+
+forall(s in escenarios) do
+
+forall(g in gen) do
+p_sol(g,s):=getsol(p(g,s))
+end-do
+
+forall(l in lineas) do
+f_sol(l,s):=getsol(f(l,s))
+end-do
+
+end-do
+
+OBJ_SOL:=getobjval
+
+initialisations to 'mmsheet.excel:'+'Datos.xlsx'
+	OBJ_SOL 		as "skiph;grow;noindex;costo_sinLS"
+    p_sol 		as "skiph;grow;noindex;p_sinLS"
+	f_sol 		as "skiph;grow;noindex;l_sinLS"
+end-initialisations
+
+end-model
